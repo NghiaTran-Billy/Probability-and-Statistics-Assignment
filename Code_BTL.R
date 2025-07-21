@@ -26,7 +26,7 @@ library(DescTools)
 library(plotly)
 
 # Đọc dữ liệu
-GPU = read.csv("C:/Users/Minh/Downloads/sxtk/BTL/All_GPUs.csv",header=TRUE,na.strings=c("","\n- ","\n","\nUnknown Release Date "))
+GPU = read.csv("D:/DHBK/HK243/XSTK/All_GPUs.csv",header=TRUE,na.strings=c("","\n- ","\n","\nUnknown Release Date "))
 
 # Chọn biến
 GPU_new = GPU[,c("Boost_Clock", "Core_Speed", "Memory_Speed", "ROPs", "TMUs", "Memory_Bus", "Memory", "Process", "Shader", "Pixel_Rate", "Texture_Rate")]
@@ -40,11 +40,11 @@ print( apply(is.na(GPU_new),2,sum) )
 
 # Định nghĩa helper
 helper <- function(x){ 
-    if(is.na(x)) return(NA)
-    as.double(strsplit(as.character(x), " ")[[1]][1])
-        #strsplit return về 1 list các list: vd 7 MHz -> list(list(7),list(MHz))
-        #strsplit[[1]] để truy cập vào list đầu tiên ->list(7)
-        #strsplit[[1]][[1]] truy cập phần tử đầu tiên trong list -> 7
+  if(is.na(x)) return(NA)
+  as.double(strsplit(as.character(x), " ")[[1]][1])
+  #strsplit return về 1 list các list: vd 7 MHz -> list(list(7),list(MHz))
+  #strsplit[[1]] để truy cập vào list đầu tiên ->list(7)
+  #strsplit[[1]][[1]] truy cập phần tử đầu tiên trong list -> 7
 }
 
 # Boost_Clock
@@ -82,9 +82,9 @@ GPU_new$Process <- as.double(gsub("[^0-9\\.]", "", as.character(GPU_new$Process)
 GPU_new$Process[is.na(GPU_new$Process)] <- median(GPU_new$Process, na.rm = TRUE)
 
 # Shaders
-GPU_new$Shaders <- as.double(GPU_new$Shaders)
+GPU_new$Shader <- as.double(GPU_new$Shader)
 med_shader <- median(GPU_new$Shader, na.rm = TRUE)
-GPU_new$Shaders[is.na(GPU_new$Shaders)] <- median(GPU_new$Shaders, na.rm = TRUE)
+GPU_new$Shader[is.na(GPU_new$Shader)] <- median(GPU_new$Shader, na.rm = TRUE)
 
 # Pixel_Rate 
 GPU_new$Pixel_Rate <- sapply(GPU_new$Pixel_Rate, helper) 
@@ -108,7 +108,7 @@ print(colSums(is.na(GPU_new)))
 numerical <- c(
   "Boost_Clock", "Core_Speed", "Memory_Speed",
   "ROPs", "TMUs", "Memory_Bus",
-  "Memory", "Process", "Shader", 
+  "Memory", "Process", "Shader"
 )
 
 # Tạo dataframe log-transformed
@@ -191,7 +191,7 @@ hist(GPU_new$Pixel_Rate,
      col    = "lightblue")
 
 # Histogram log(Pixel_Rate)
-hist(GPU_new$log_Pixel_Rate,
+hist(GPU_new_log$Pixel_Rate,
      main   = "Histogram of log(Pixel_Rate)",
      xlab   = "log(Pixel_Rate)",
      breaks = 30,
@@ -205,7 +205,7 @@ hist(GPU_new$Texture_Rate,
      col    = "lightpink")
 
 # Histogram log(Texture_Rate)
-hist(GPU_new$log_Texture_Rate,
+hist(GPU_new_log$Texture_Rate,
      main   = "Histogram of log(Texture_Rate)",
      xlab   = "log(Texture_Rate)",
      breaks = 30,
@@ -234,8 +234,8 @@ par(mfrow = c(1, 1))
 #boxplot(Memory~Resolution_WxH, data=GPU_new_log, main="boxplot of log(memory) for memory_type", col="red")
 
 # Chia layout thành 9 hàng và 2 cột
-par(mfrow = c(9, 2), mar = c(4, 4, 2, 1))
-
+par(mfrow = c(2, 2), mar = c(4, 4, 2, 1))
+#par(mfrow = c(3, 2), mar = c(4, 4, 2, 1))
 # Vẽ scatter plot
 # Boost_Clock vs Pixel_Rate
 plot(GPU_new$Boost_Clock, GPU_new$Pixel_Rate,
@@ -383,9 +383,9 @@ for (var1 in names(GPU_new[numerical])) {
   
   # Thêm kết quả vào dataframe
   correlation_results <- rbind(correlation_results, 
-                                data.frame(Memory = var1,
-                                           Pearson_Correlation = test_result$estimate,
-                                           P_Value = test_result$p.value))
+                               data.frame(Memory = var1,
+                                          Pearson_Correlation = test_result$estimate,
+                                          P_Value = test_result$p.value))
 }
 
 # In ra dataframe kết quả
@@ -425,6 +425,7 @@ mse_value <- mse(predicted_value, test$Memory)
 # In ra kết quả
 cat("MAE (trung bình của sai biệt tuyệt đối): ", mae_value, "\n")
 cat("MSE (trung bình bình phương sai số): ", mse_value, "\n")
+
 
 model_ANOVA <- aov(Memory ~ Manufacturer + Resolution_WxH + Memory_Type, data= GPU_new_log)
 summary(model_ANOVA)
