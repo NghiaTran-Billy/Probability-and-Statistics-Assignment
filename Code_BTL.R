@@ -10,6 +10,9 @@
 # install.packages("mltools")
 # install.packages("DescTools")
 # install.packages("plotly")
+#install.packages("questionr")
+#install.packages("knitr")
+#install.packages("patchwork")
 
 # Thư viện cần thiết
 library(stringr)
@@ -24,13 +27,46 @@ library(reshape2)
 library(mltools)
 library(DescTools)
 library(plotly)
-
+library(questionr)
+library(knitr)
+library(patchwork)
 # Đọc dữ liệu
-GPU = read.csv("/home/nghiatran/Code_R/All_GPUs.csv",header=TRUE,na.strings=c("","\n- ","\n","\nUnknown Release Date "))
+GPU = read.csv("D:/DHBK/HK243/XSTK/BTL/Code_R/All_GPUs.csv",header=TRUE,na.strings=c("","\n- ","\n","\nUnknown Release Date "))
+head(GPU,4)
+dim(GPU)
+na_summary_df <- data.frame(
+  Variable = names(GPU),
+  Missing = colSums(is.na(GPU)),
+  Percentage = round(colMeans(is.na(GPU)) * 100, 1)
+)
+
+plot1 <- ggplot(data = na_summary_df, aes(x = reorder(Variable, -Missing), y = Missing)) +
+  geom_bar(stat = "identity", fill = "sienna3") +
+  geom_text(aes(label = Missing), vjust = -0.5, size = 3) +
+  labs(
+    title = "Số lượng dữ liệu khuyết theo biến",
+    x = "Biến",
+    y = "Số lượng dữ liệu NA"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+plot2 <- ggplot(data = na_summary_df, aes(x = reorder(Variable, -Percentage), y = Percentage)) +
+  geom_bar(stat = "identity", fill = "turquoise3") +
+  geom_text(aes(label = Percentage), vjust = -0.5, size = 2.5) +
+  labs(
+    title = "Phần trăm dữ liệu khuyết theo biến",
+    x = "Biến",
+    y = "Phần trăm dữ liệu NA"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+plot1 | plot2
+ggsave("na_combined_filtered_plot.png", width = 5, height = 12)
 
 # Chọn biến
 GPU_new = GPU[,c("Resolution_WxH", "Manufacturer", "Boost_Clock", "Core_Speed", "Memory_Speed", "Memory_Type", 
-                    "ROPs", "TMUs", "Memory_Bus", "Memory", "Process", "Shader", "Pixel_Rate")]
+                 "ROPs", "TMUs", "Memory_Bus", "Memory", "Process", "Shader", "Pixel_Rate")]
 
 # Kiểm tra kiểu dữ liệu và số dữ liệu trống
 print( summary(GPU_new) )
@@ -41,16 +77,16 @@ print( apply(is.na(GPU_new),2,sum) )
 
 # Định nghĩa helper
 helper <- function(x){ 
-    if(is.na(x)) return(NA)
-    as.double(strsplit(as.character(x), " ")[[1]][1])
-        #strsplit return về 1 list các list: vd 7 MHz -> list(list(7),list(MHz))
-        #strsplit[[1]] để truy cập vào list đầu tiên ->list(7)
-        #strsplit[[1]][[1]] truy cập phần tử đầu tiên trong list -> 7
+  if(is.na(x)) return(NA)
+  as.double(strsplit(as.character(x), " ")[[1]][1])
+  #strsplit return về 1 list các list: vd 7 MHz -> list(list(7),list(MHz))
+  #strsplit[[1]] để truy cập vào list đầu tiên ->list(7)
+  #strsplit[[1]][[1]] truy cập phần tử đầu tiên trong list -> 7
 }
 
 # Loại bỏ những kí tự không phải số
 to_num <- function(x) {
-
+  
   cleaned <- gsub("[^0-9\\.]", "", x)
   as.numeric(cleaned)
 }
@@ -58,11 +94,16 @@ to_num <- function(x) {
 # Resolution_WxH
 GPU_new$Resolution_WxH[is.na(GPU_new$Resolution_WxH)] = "4096x2160"
 GPU_new$Resolution_WxH <- ifelse(GPU_new$Resolution_WxH == "4096x2160", 1, 
-                        ifelse(GPU_new$Resolution_WxH == "2560x1600", 2, 3)) # Gom nhóm: 4096x2160 (39%), 2560x1600 (34%), Other (26%)
+                                 ifelse(GPU_new$Resolution_WxH == "2560x1600", 2, 3)) # Gom nhóm: 4096x2160 (39%), 2560x1600 (34%), Other (26%)
 GPU_new$Resolution_WxH = factor(GPU_new$Resolution_WxH)
 
 # Manufacturer
 GPU_new$Manufacturer = factor(GPU_new$Manufacturer)
+
+# Memory_Type
+GPU_new <- GPU_new[complete.cases(GPU_new$Memory_Type), ]
+GPU_new$Memory_Type = gsub("[^A-Za-z]+.*","",GPU_new$Memory_Type)
+GPU_new$Memory_Type = factor(GPU_new$Memory_Type)
 
 # Boost_Clock
 GPU_new$Boost_Clock <- sapply(GPU_new$Boost_Clock, helper)
@@ -93,10 +134,6 @@ GPU_new$Memory_Bus[is.na(GPU_new$Memory_Bus)] <- median(GPU_new$Memory_Bus, na.r
 GPU_new$Memory <- sapply(GPU_new$Memory, helper)
 GPU_new$Memory[is.na(GPU_new$Memory)] <- median(GPU_new$Memory, na.rm = TRUE)
 
-# Memory_Type
-GPU_new <- GPU_new[complete.cases(GPU_new$Memory_Type), ]
-GPU_new$Memory_Type = gsub("[^A-Za-z]+.*","",GPU_new$Memory_Type)
-GPU_new$Memory_Type = factor(GPU_new$Memory_Type)
 
 # Process
 GPU_new$Process <- as.double(gsub("[^0-9\\.]", "", as.character(GPU_new$Process)))
@@ -111,12 +148,14 @@ GPU_new$Pixel_Rate <- sapply(GPU_new$Pixel_Rate, helper)
 GPU_new$Pixel_Rate[is.na(GPU_new$Pixel_Rate)] <- median(GPU_new$Pixel_Rate, na.rm = TRUE)
 
 # Loại bỏ dòng trùng lặp
+str(GPU_new)
 GPU_new <- dplyr::distinct(GPU_new)
 
 # Kiểm tra lại
 str(GPU_new)
-print(colSums(is.na(GPU_new)))
 
+print(colSums(is.na(GPU_new)))
+head(GPU_new,10)
 #--------------------------------------------------
 # Thống kê mô tả
 
@@ -298,17 +337,17 @@ correlation_results <- data.frame(
 
 # Duyệt qua từng biến định lượng để tính hệ số tương quan Pearson
 for (var1 in names(GPU_new[numerical])) {
-     test_result <- cor.test(GPU_new[[var1]], GPU_new$Pixel_Rate)
-
-     # Lưu kết quả vào bảng kết quả
-     correlation_results <- rbind(
-       correlation_results, 
-       data.frame(
-         Variable = var1,
-         Pearson_Correlation = test_result$estimate,
-         P_Value = test_result$p.value
-       )
-     )
+  test_result <- cor.test(GPU_new[[var1]], GPU_new$Pixel_Rate)
+  
+  # Lưu kết quả vào bảng kết quả
+  correlation_results <- rbind(
+    correlation_results, 
+    data.frame(
+      Variable = var1,
+      Pearson_Correlation = test_result$estimate,
+      P_Value = test_result$p.value
+    )
+  )
 }
 
 # Hiển thị bảng kết quả hệ số tương quan và p-value
@@ -340,16 +379,15 @@ test$error <- predicted_value - test$Pixel_Rate
 # Trực quan hóa phân phối thực tế vs dự đoán
 # Chuẩn hóa dữ liệu theo định dạng long để dễ vẽ biểu đồ
 test_long <- test %>%
-     select(Pixel_Rate, predicted_value) %>%
-     gather(key = "Type", value = "Value")
+  select(Pixel_Rate, predicted_value) %>%
+  gather(key = "Type", value = "Value")
 
 # Vẽ biểu đồ mật độ (density plot)
-x11()
 ggplot(test_long, aes(x = Value, fill = Type)) +
-     geom_density(alpha = 0.5) +
-     scale_fill_manual(values = c("blue", "red")) +
-     theme_bw() +
-     labs(title = "Thực tế (blue) vs Dự đoán (red)", x = "Pixel_Rate")
+  geom_density(alpha = 0.5) +
+  scale_fill_manual(values = c("blue", "red")) +
+  theme_bw() +
+  labs(title = "Thực tế (blue) vs Dự đoán (red)", x = "Pixel_Rate")
 
 # Tính toán các chỉ số sai số dự đoán
 mae_value <- mae(predicted_value, test$Pixel_Rate)
