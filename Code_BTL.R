@@ -10,6 +10,10 @@
 # install.packages("mltools")
 # install.packages("DescTools")
 # install.packages("plotly")
+# install.packages("car")
+# install.packages("caret")
+# install.packages("effectsize")
+# install.packages("boot")
 #install.packages("questionr")
 #install.packages("knitr")
 #install.packages("patchwork")
@@ -19,7 +23,7 @@ library(stringr)
 library(tidyr)
 library(dplyr)
 library(zoo)
-library(Metrics)
+library(Metrics)      # mae(), mse()
 library(caret)
 library(MASS)
 library(ggplot2)
@@ -27,6 +31,10 @@ library(reshape2)
 library(mltools)
 library(DescTools)
 library(plotly)
+library(car)          # vif(), leveneTest(), ncvTest()
+library(caret)        # createDataPartition(), train()
+library(effectsize)   # eta_squared()
+library(boot)
 library(questionr)
 library(knitr)
 library(patchwork)
@@ -325,82 +333,172 @@ par(mfrow = c(1, 1))
 
 #--------------------------------------------------
 # Thống kê suy diễn và mô hình hóa dữ liệu GPU
+# Dự đoán sự phát triển của Pixel_Rate
+#--------------------------------------------------
 
-# Tính tương quan Pearson giữa mỗi biến định lượng và Pixel_Rate
-# Khởi tạo một dataframe rỗng để lưu kết quả tương quan
-correlation_results <- data.frame(
-  Variable = character(),
-  Pearson_Correlation = numeric(),
-  P_Value = numeric(),
-  stringsAsFactors = FALSE
-)
-
-# Duyệt qua từng biến định lượng để tính hệ số tương quan Pearson
-for (var1 in names(GPU_new[numerical])) {
-  test_result <- cor.test(GPU_new[[var1]], GPU_new$Pixel_Rate)
-  
-  # Lưu kết quả vào bảng kết quả
-  correlation_results <- rbind(
-    correlation_results, 
-    data.frame(
-      Variable = var1,
-      Pearson_Correlation = test_result$estimate,
-      P_Value = test_result$p.value
-    )
-  )
-}
-
-# Hiển thị bảng kết quả hệ số tương quan và p-value
-print(correlation_results)
-
-# Kiểm tra phân bố và mối quan hệ giữa các biến định lượng (sau khi log)
-# Sử dụng biểu đồ scatter matrix để xem nhanh mối liên hệ giữa các biến đã log-transform
-pairs(GPU_new_log[numerical])
-
-# Chia dữ liệu thành tập huấn luyện và kiểm tra (2/3 - 1/3)
-# Dữ liệu đã log-transform trước đó
+#--------------------------------------------------
+# 1. Chia dữ liệu thành tập huấn luyện và tập kiểm tra (2/3 - 1/3)
+#--------------------------------------------------
+set.seed(123)
 index <- createDataPartition(GPU_new_log$Pixel_Rate, p = 2/3, list = FALSE)
 train <- GPU_new_log[index, ]
 test  <- GPU_new_log[-index, ]
 
-# Huấn luyện mô hình hồi quy tuyến tính đa biến
-model <- lm(Pixel_Rate ~ ., data = train)
+#--------------------------------------------------
+# 5. Thống kê suy diễn
+#--------------------------------------------------
+# 5.1 Đánh giá mối quan hệ giữa các biến
+# 5.1.1 Ma trận tương quan Pearson
+correlation_results <- data.frame(
+  Variable = character(),
+  Pearson_r = numeric(),
+  P_Value = numeric(),
+  stringsAsFactors = FALSE
+)
 
-# Hiển thị summary để đánh giá hệ số, R-squared, p-value v.v.
-print(summary(model))
+for (var in numerical) {
+  test_result <- cor.test(train[[var]], train$Pixel_Rate)
+  correlation_results <- rbind(
+    correlation_results,
+    data.frame(
+      Variable = var,
+      Pearson_r = unname(test_result$estimate),
+      P_Value = test_result$p.value
+    )
+  )
+}
+print(correlation_results)
 
-# Dự đoán và đánh giá mô hình trên tập kiểm tra
-predicted_value <- predict(model, newdata = test)
+# 5.1.2 Scatter plot và Scatter matrix
+pairs(train[numerical], main = "Scatter matrix (Train set)")
 
-# Thêm cột giá trị dự đoán và sai số vào tập test
-test$predicted_value <- predicted_value
-test$error <- predicted_value - test$Pixel_Rate
+for (v in numerical) {
+  ggplot(train, aes_string(x = v, y = "Pixel_Rate")) +
+    geom_point() +
+    geom_smooth(method = "lm", se = FALSE, col = "red") +
+    ggtitle(paste("Pixel_Rate ~", v, "(Train set)")) +
+    theme_minimal() -> p
+  print(p)
+}
 
-# Trực quan hóa phân phối thực tế vs dự đoán
-# Chuẩn hóa dữ liệu theo định dạng long để dễ vẽ biểu đồ
+# 5.2 So sánh và kiểm định nhóm
+# 5.2.1 Phân tích phương sai (ANOVA) cho 3 nhóm trở lên
+for (cat in categorical) {
+  cat("\nANOVA for", cat, "on Train set\n")
+  aov_mod <- aov(as.formula(paste("Pixel_Rate ~", cat)), data = train)
+  print(summary(aov_mod))
+  
+  # 5.2.1.1 Kiểm định giả thiết (Shapiro, Levene)
+  print(shapiro.test(residuals(aov_mod)))  # Normality
+  levene_result <- leveneTest(as.formula(paste("Pixel_Rate ~", cat)), data = train)
+  print(levene_result)  # Homogeneity
+  
+  # 5.2.1.2 Hậu nghiệm Tukey & Effect size (η²)
+  tukey_result <- TukeyHSD(aov_mod)
+  print(tukey_result)
+  tab <- summary(aov_mod)[[1]]
+  eta2 <- tab[,"Sum Sq"] / sum(tab[,"Sum Sq"])
+  print(cbind(tab, Eta2 = eta2))
+}
+
+# 5.3 Xây dựng mô hình hồi quy đa biến
+# 5.3.1 Tiền xử lý & lựa chọn biến (stepwise / Lasso / VIF)
+# Tạo công thức với tất cả biến
+full_form <- as.formula(
+  paste("Pixel_Rate ~", paste(c(numerical, categorical), collapse = " + "))
+)
+
+# Huấn luyện mô hình đầy đủ
+full_mod <- lm(full_form, data = train)
+print(vif(full_mod))  # Kiểm tra multicollinearity
+
+# Lựa chọn biến bằng stepwise selection
+step_mod <- step(full_mod, direction = "both", trace = 0)
+print(summary(step_mod))
+
+# 5.3.2 Xây dựng mô hình đa biến
+model_final <- step_mod
+print(summary(model_final))
+
+# 5.3.3 Đánh giá mô hình (adjusted R², AIC/BIC, F-test)
+cat("Adjusted R²:", summary(model_final)$adj.r.squared, "\n")
+cat("AIC:", AIC(model_final), " BIC:", BIC(model_final), "\n")
+print(anova(model_final))  # F-test
+
+# 5.3.4 Diagnostic plots & kiểm tra multicollinearity (VIF)
+par(mfrow = c(2, 2))
+plot(model_final)
+par(mfrow = c(1, 1))
+print(vif(model_final))
+
+# 5.3.5 Cross-validation (k-fold)
+set.seed(123)
+cv <- train(full_form, data = train,
+            method = "lm",
+            trControl = trainControl(method = "cv", number = 5))
+print(cv)
+
+# 5.4 Phân tích chuỗi thời gian (nếu có biến thời gian)
+if ("Release_Date" %in% names(train)) {
+  train$Release_Date <- as.Date(train$Release_Date)
+  test$Release_Date <- as.Date(test$Release_Date)
+  train$Time_Trend <- as.numeric(train$Release_Date - min(train$Release_Date))
+  test$Time_Trend <- as.numeric(test$Release_Date - min(train$Release_Date))
+  
+  full_form_time <- as.formula(
+    paste("Pixel_Rate ~", paste(c(numerical, categorical, "Time_Trend"), collapse = " + "))
+  )
+  
+  model_time <- lm(full_form_time, data = train)
+  print(summary(model_time))
+}
+
+#--------------------------------------------------
+# 6. Đánh giá và dự báo
+#--------------------------------------------------
+# 6.1 Dự báo trên tập test: MAE, MSE, R², RMSE
+pred <- predict(model_final, newdata = test)
+test$predicted_value <- pred
+
+# Tính toán các chỉ số
+mae_value <- mae(test$Pixel_Rate, test$predicted_value)
+mse_value <- mse(test$Pixel_Rate, test$predicted_value)
+rmse_value <- rmse(test$Pixel_Rate, test$predicted_value)
+r2_value <- cor(test$Pixel_Rate, test$predicted_value)^2
+
+cat("MAE trên tập kiểm tra:", mae_value, "\n")
+cat("MSE trên tập kiểm tra:", mse_value, "\n")
+cat("RMSE trên tập kiểm tra:", rmse_value, "\n")
+cat("R² trên tập kiểm tra:", r2_value, "\n")
+
+# 6.2 Density plot/Scatter plot thực vs dự đoán
+# Density plot
 test_long <- test %>%
   select(Pixel_Rate, predicted_value) %>%
-  gather(key = "Type", value = "Value")
+  rename(Thuc_te = Pixel_Rate, Du_doan = predicted_value) %>%
+  pivot_longer(everything(), names_to = "Type", values_to = "Value")
 
-# Vẽ biểu đồ mật độ (density plot)
 ggplot(test_long, aes(x = Value, fill = Type)) +
   geom_density(alpha = 0.5) +
   scale_fill_manual(values = c("blue", "red")) +
   theme_bw() +
-  labs(title = "Thực tế (blue) vs Dự đoán (red)", x = "Pixel_Rate")
+  labs(title = "Thực tế (blue) vs Dự đoán (red) trên tập kiểm tra", x = "Pixel_Rate")
 
-# Tính toán các chỉ số sai số dự đoán
-mae_value <- mae(predicted_value, test$Pixel_Rate)
-mse_value <- mse(predicted_value, test$Pixel_Rate)
+# Scatter plot
+ggplot(test, aes(x = Pixel_Rate, y = predicted_value)) +
+  geom_point() +
+  geom_abline(slope = 1, intercept = 0, col = "red") +
+  theme_minimal() +
+  labs(title = "Thực tế vs Dự đoán", x = "Thực tế", y = "Dự đoán")
 
-# In ra kết quả sai số
-cat("MAE (Sai số tuyệt đối trung bình): ", mae_value, "\n")
-cat("MSE (Sai số bình phương trung bình): ", mse_value, "\n")
+# 6.3 Prediction intervals cho tương lai
+new_data <- test[1, , drop = FALSE]  # Lấy một hàng từ test làm ví dụ
+pred_interval <- predict(model_final, newdata = new_data, interval = "prediction")
+print(pred_interval)
 
-# Phân tích phương sai (ANOVA) với các biến phân loại
-# Kiểm định xem Manufacturer, Resolution_WxH, Memory_Type có ảnh hưởng đến Pixel_Rate không
-model_ANOVA <- aov(Pixel_Rate ~ Manufacturer + Resolution_WxH + Memory_Type, data = GPU_new_log)
-summary(model_ANOVA)
-
-# Kiểm định hậu nghiệm để xem nhóm nào khác biệt (nếu ANOVA có ý nghĩa)
-TukeyHSD(model_ANOVA)
+# 6.4 Kịch bản dự báo (giả định tăng/giảm biến X)
+scenario_data <- test
+scenario_data$Core_Speed <- scenario_data$Core_Speed * 1.1
+pred_scenario <- predict(model_final, newdata = scenario_data)
+cat("Dự đoán với Core_Speed tăng 10%:\n")
+print(summary(pred_scenario))
