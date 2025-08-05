@@ -35,8 +35,8 @@ library(car)          # vif(), leveneTest(), ncvTest()
 library(caret)        # createDataPartition(), train()
 library(effectsize)   # eta_squared()
 library(boot)
-library(questionr)
-library(knitr)
+#library(questionr)
+#library(knitr)
 library(patchwork)
 # Đọc dữ liệu
 GPU = read.csv("D:/DHBK/HK243/XSTK/BTL/Code_R/All_GPUs.csv",header=TRUE,na.strings=c("","\n- ","\n","\nUnknown Release Date "))
@@ -63,9 +63,9 @@ plot2 <- ggplot(data = na_summary_df, aes(x = reorder(Variable, -Percentage), y 
   geom_bar(stat = "identity", fill = "turquoise3") +
   geom_text(aes(label = Percentage), vjust = -0.5, size = 2.5) +
   labs(
-    title = "Phần trăm dữ liệu khuyết theo biến",
+    title = "Tỷ lệ dữ liệu khuyết theo biến",
     x = "Biến",
-    y = "Phần trăm dữ liệu NA"
+    y = "Tỷ lệ dữ liệu NA(%)"
   ) +
   theme_minimal() +
   theme(axis.text.x = element_text(angle = 90, hjust = 1))
@@ -161,9 +161,9 @@ GPU_new <- dplyr::distinct(GPU_new)
 
 # Kiểm tra lại
 str(GPU_new)
-
 print(colSums(is.na(GPU_new)))
 head(GPU_new,10)
+summary(GPU_new)
 #--------------------------------------------------
 # Thống kê mô tả
 
