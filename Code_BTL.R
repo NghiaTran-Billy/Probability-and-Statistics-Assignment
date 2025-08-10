@@ -14,16 +14,16 @@
 # install.packages("caret")
 # install.packages("effectsize")
 # install.packages("boot")
-#install.packages("questionr")
-#install.packages("knitr")
-#install.packages("patchwork")
+# install.packages("questionr")
+# install.packages("knitr")
+# install.packages("patchwork")
 
 # Thư viện cần thiết
 library(stringr)
 library(tidyr)
 library(dplyr)
 library(zoo)
-library(Metrics)      # mae(), mse()
+library(Metrics) # mae(), mse()
 library(caret)
 library(MASS)
 library(ggplot2)
@@ -31,17 +31,20 @@ library(reshape2)
 library(mltools)
 library(DescTools)
 library(plotly)
-library(car)          # vif(), leveneTest(), ncvTest()
-library(caret)        # createDataPartition(), train()
-library(effectsize)   # eta_squared()
+library(car) # vif(), leveneTest(), ncvTest()
+library(caret) # createDataPartition(), train()
+library(effectsize) # eta_squared()
 library(boot)
-#library(questionr)
-#library(knitr)
+# library(questionr)
+# library(knitr)
 library(patchwork)
 # Đọc dữ liệu
-GPU = read.csv("D:/DHBK/HK243/XSTK/BTL/Code_R/All_GPUs.csv",header=TRUE,na.strings=c("","\n- ","\n","\nUnknown Release Date "))
-head(GPU,4)
+GPU <- read.csv("D:/DHBK/HK243/XSTK/BTL/Code_R/All_GPUs.csv", header = TRUE, na.strings = c("", "\n- ", "\n", "\nUnknown Release Date "))
+head(GPU, 4)
 dim(GPU)
+
+# Tiền xử lí số liệu
+
 na_summary_df <- data.frame(
   Variable = names(GPU),
   Missing = colSums(is.na(GPU)),
@@ -73,49 +76,47 @@ plot1 | plot2
 ggsave("na_combined_filtered_plot.png", width = 5, height = 12)
 
 # Chọn biến
-GPU_new = GPU[,c("Resolution_WxH", "Manufacturer", "Boost_Clock", "Core_Speed", "Memory_Speed", "Memory_Type", 
-                 "ROPs", "TMUs", "Memory_Bus", "Memory", "Process", "Shader", "Pixel_Rate")]
+GPU_new <- GPU[, c(
+  "Resolution_WxH", "Manufacturer", "Core_Speed", "Memory_Speed", "Memory_Type",
+  "ROPs", "TMUs", "Memory_Bus", "Memory", "Process", "Shader", "Pixel_Rate"
+)]
 
 # Kiểm tra kiểu dữ liệu và số dữ liệu trống
-print( summary(GPU_new) )
-print( apply(is.na(GPU_new),2,sum) )
+print(summary(GPU_new))
+print(apply(is.na(GPU_new), 2, sum))
 
-#--------------------------------------------------
-# Tiền xử lí số liệu
 
 # Định nghĩa helper
-helper <- function(x){ 
-  if(is.na(x)) return(NA)
+helper <- function(x) {
+  if (is.na(x)) {
+    return(NA)
+  }
   as.double(strsplit(as.character(x), " ")[[1]][1])
-  #strsplit return về 1 list các list: vd 7 MHz -> list(list(7),list(MHz))
-  #strsplit[[1]] để truy cập vào list đầu tiên ->list(7)
-  #strsplit[[1]][[1]] truy cập phần tử đầu tiên trong list -> 7
+  # strsplit return về 1 list các list: vd 7 MHz -> list(list(7),list(MHz))
+  # strsplit[[1]] để truy cập vào list đầu tiên ->list(7)
+  # strsplit[[1]][[1]] truy cập phần tử đầu tiên trong list -> 7
 }
 
 # Loại bỏ những kí tự không phải số
 to_num <- function(x) {
-  
   cleaned <- gsub("[^0-9\\.]", "", x)
   as.numeric(cleaned)
 }
 
 # Resolution_WxH
-GPU_new$Resolution_WxH[is.na(GPU_new$Resolution_WxH)] = "4096x2160"
-GPU_new$Resolution_WxH <- ifelse(GPU_new$Resolution_WxH == "4096x2160", 1, 
-                                 ifelse(GPU_new$Resolution_WxH == "2560x1600", 2, 3)) # Gom nhóm: 4096x2160 (39%), 2560x1600 (34%), Other (26%)
-GPU_new$Resolution_WxH = factor(GPU_new$Resolution_WxH)
+GPU_new$Resolution_WxH[is.na(GPU_new$Resolution_WxH)] <- "4096x2160"
+GPU_new$Resolution_WxH <- ifelse(GPU_new$Resolution_WxH == "4096x2160", 1,
+  ifelse(GPU_new$Resolution_WxH == "2560x1600", 2, 3)
+) # Gom nhóm: 4096x2160 (39%), 2560x1600 (34%), Other (26%)
+GPU_new$Resolution_WxH <- factor(GPU_new$Resolution_WxH)
 
 # Manufacturer
-GPU_new$Manufacturer = factor(GPU_new$Manufacturer)
+GPU_new$Manufacturer <- factor(GPU_new$Manufacturer)
 
 # Memory_Type
 GPU_new <- GPU_new[complete.cases(GPU_new$Memory_Type), ]
-GPU_new$Memory_Type = gsub("[^A-Za-z]+.*","",GPU_new$Memory_Type)
-GPU_new$Memory_Type = factor(GPU_new$Memory_Type)
-
-# Boost_Clock
-GPU_new$Boost_Clock <- sapply(GPU_new$Boost_Clock, helper)
-GPU_new$Boost_Clock[is.na(GPU_new$Boost_Clock)] <- median(GPU_new$Boost_Clock, na.rm = TRUE)
+GPU_new$Memory_Type <- gsub("[^A-Za-z]+.*", "", GPU_new$Memory_Type)
+GPU_new$Memory_Type <- factor(GPU_new$Memory_Type)
 
 # Core_Speed
 GPU_new$Core_Speed <- sapply(GPU_new$Core_Speed, helper)
@@ -151,8 +152,8 @@ GPU_new$Process[is.na(GPU_new$Process)] <- median(GPU_new$Process, na.rm = TRUE)
 GPU_new$Shader <- as.double(GPU_new$Shader)
 GPU_new$Shader[is.na(GPU_new$Shader)] <- median(GPU_new$Shader, na.rm = TRUE)
 
-# Pixel_Rate 
-GPU_new$Pixel_Rate <- sapply(GPU_new$Pixel_Rate, helper) 
+# Pixel_Rate
+GPU_new$Pixel_Rate <- sapply(GPU_new$Pixel_Rate, helper)
 GPU_new$Pixel_Rate[is.na(GPU_new$Pixel_Rate)] <- median(GPU_new$Pixel_Rate, na.rm = TRUE)
 
 # Loại bỏ dòng trùng lặp
@@ -162,19 +163,19 @@ GPU_new <- dplyr::distinct(GPU_new)
 # Kiểm tra lại
 str(GPU_new)
 print(colSums(is.na(GPU_new)))
-head(GPU_new,10)
+head(GPU_new, 10)
 summary(GPU_new)
 #--------------------------------------------------
 # Thống kê mô tả
 
 # Định nghĩa lại danh sách biến số
 numerical <- c(
-  "Boost_Clock", "Core_Speed", "Memory_Speed",
+  "Core_Speed", "Memory_Speed",
   "ROPs", "TMUs", "Memory_Bus",
-  "Memory", "Process", "Shader" 
+  "Memory", "Process", "Shader"
 )
 
-categorical <- c("Manufacturer","Memory_Type","Resolution_WxH")
+categorical <- c("Manufacturer", "Memory_Type", "Resolution_WxH")
 
 # Tạo dataframe log-transformed
 GPU_new_log <- GPU_new
@@ -182,8 +183,8 @@ GPU_new_log[, numerical] <- log(GPU_new_log[, numerical])
 GPU_new_log$Pixel_Rate <- log(GPU_new_log$Pixel_Rate)
 
 # Xem 6 dòng đầu của GPU_new_log
-head(GPU_new_log)
-
+head(GPU_new_log,10)
+print(summary(GPU_new_log))
 # Kiểm tra xem có giá trị < 0 trong dữ liệu gốc
 for (var in numerical) {
   has_negative <- any(GPU_new[[var]] < 0, na.rm = TRUE)
@@ -196,52 +197,58 @@ for (var in numerical) {
   message(var, " in log-transformed < 0? ", has_negative_log)
 }
 
-# Thống kê nhanh trên GPU_new (sau tiền xử lý, trước log)
-print(summary(GPU_new))
-print(colSums(is.na(GPU_new)))
+# Thống kê nhanh trên GPU_new_log
+print(summary(GPU_new_log))
+print(colSums(is.na(GPU_new_log)))
 
-# Xem 10 dòng đầu của GPU_new
-head(GPU_new, 10)
+# Xem 10 dòng đầu của GPU_new_log
+head(GPU_new_log, 10)
+
+#--------------------------------------------------
+# 4. Thống kê mô tả
+#--------------------------------------------------
 
 # Lập bảng tính các giá trị thống kê mô tả cho GPU_new và GPU_new_log
-mean<-apply(GPU_new[,numerical],2,mean)
-sd<-apply(GPU_new[,numerical],2,sd)
-min<-apply(GPU_new[,numerical],2,min)
-max<-apply(GPU_new[,numerical],2,max)
-median<-apply(GPU_new[,numerical],2,median)
-data.frame(mean,sd,min,max,median)
+mean <- apply(GPU_new[, numerical], 2, mean)
+sd <- apply(GPU_new[, numerical], 2, sd)
+min <- apply(GPU_new[, numerical], 2, min)
+max <- apply(GPU_new[, numerical], 2, max)
+median <- apply(GPU_new[, numerical], 2, median)
+data.frame(mean, sd, min, max, median)
 
-mean<-apply(GPU_new_log[,numerical],2,mean)
-sd<-apply(GPU_new_log[,numerical],2,sd)
-min<-apply(GPU_new_log[,numerical],2,min)
-max<-apply(GPU_new_log[,numerical],2,max)
-median<-apply(GPU_new_log[,numerical],2,median)
-data.frame(mean,sd,min,max,median)
+mean <- apply(GPU_new_log[, numerical], 2, mean)
+sd <- apply(GPU_new_log[, numerical], 2, sd)
+min <- apply(GPU_new_log[, numerical], 2, min)
+max <- apply(GPU_new_log[, numerical], 2, max)
+median <- apply(GPU_new_log[, numerical], 2, median)
+data.frame(mean, sd, min, max, median)
 
 # Chia layout thành 3 hàng và 3 cột
-par(mfrow = c(3, 3), mar = c(4, 4, 2, 1))
+par(mfrow = c(2, 4), mar = c(4, 4, 2, 1))
 
 # Vẽ histogram cho từng biến numerical trong GPU_new
 for (i in 1:length(numerical)) {
   hist_data <- GPU_new[[numerical[i]]]
-  hist(hist_data, 
-       xlab = names(GPU_new)[which(names(GPU_new) == numerical[i])], 
-       main = paste("Histogram of", names(GPU_new)[which(names(GPU_new) == numerical[i])]), 
-       labels = TRUE, 
-       col = "blue")
+  hist(hist_data,
+    xlab = names(GPU_new)[which(names(GPU_new) == numerical[i])],
+    main = paste("Histogram of", names(GPU_new)[which(names(GPU_new) == numerical[i])]),
+    labels = TRUE,
+    col = "blue"
+  )
 }
 
 # Chia layout thành 3 hàng và 3 cột
-par(mfrow = c(3, 3), mar = c(4, 4, 2, 1))
+par(mfrow = c(2, 4), mar = c(4, 4, 2, 1))
 
 # Vẽ histogram cho từng biến numerical trong GPU_new_log
 for (i in 1:length(numerical)) {
   hist_data <- GPU_new_log[[numerical[i]]]
-  hist(hist_data, 
-       xlab = names(GPU_new_log)[which(names(GPU_new_log) == numerical[i])], 
-       main = paste("Histogram of log(", names(GPU_new_log)[which(names(GPU_new_log) == numerical[i])], ")"), 
-       labels = TRUE, 
-       col = "red")
+  hist(hist_data,
+    xlab = names(GPU_new_log)[which(names(GPU_new_log) == numerical[i])],
+    main = paste("Histogram of log(", names(GPU_new_log)[which(names(GPU_new_log) == numerical[i])], ")"),
+    labels = TRUE,
+    col = "red"
+  )
 }
 
 # Chia layout thành 1 hàng và 2 cột
@@ -249,38 +256,40 @@ par(mfrow = c(1, 2), mar = c(4, 4, 2, 1))
 
 # Histogram Pixel_Rate
 hist(GPU_new$Pixel_Rate,
-     main   = "Histogram of Pixel_Rate",
-     xlab   = "Pixel_Rate (GPixel/s)",
-     breaks = 30,
-     col    = "lightblue")
+  main   = "Histogram of Pixel_Rate",
+  xlab   = "Pixel_Rate (GPixel/s)",
+  breaks = 30,
+  col    = "lightblue"
+)
 
 # Histogram log(Pixel_Rate)
 hist(GPU_new_log$Pixel_Rate,
-     main   = "Histogram of log(Pixel_Rate)",
-     xlab   = "log(Pixel_Rate)",
-     breaks = 30,
-     col    = "lightpink")
+  main   = "Histogram of log(Pixel_Rate)",
+  xlab   = "log(Pixel_Rate)",
+  breaks = 30,
+  col    = "lightpink"
+)
 
 # Chia layout thành 1 hàng và 3 cột
 par(mfrow = c(1, 3), mar = c(4, 4, 2, 1))
 
 # Vẽ bảng barplot thể hiện phân phối biến định luọng
-barplot(table(GPU_new$Manufacturer), xlab="Manufacturer", ylab="Frequency", main="Barplot of Manufacturer", col=c("red","green","blue"))
-barplot(table(GPU_new$Memory_Type), xlab="Memory_Type", ylab="Frequency", main="Barplot of Memory_Type", col=c("red","green","blue"))
-barplot(table(GPU_new$Resolution_WxH), xlab="Resolution_WxH", ylab="Frequency", main="Barplot of Resolution_WxH", col=c("red","green","blue"))
+barplot(table(GPU_new$Manufacturer), xlab = "Manufacturer", ylab = "Frequency", main = "Barplot of Manufacturer", col = c("red", "green", "blue"))
+barplot(table(GPU_new$Memory_Type), xlab = "Memory_Type", ylab = "Frequency", main = "Barplot of Memory_Type", col = c("red", "green", "blue"))
+barplot(table(GPU_new$Resolution_WxH), xlab = "Resolution_WxH", ylab = "Frequency", main = "Barplot of Resolution_WxH", col = c("red", "green", "blue"))
 
 # Vẽ boxplot diễn tả 5 vị trí phân bố dữ liệu của biến định lượng
-par(mfrow=c(1,2))
-boxplot(Pixel_Rate~Manufacturer, data=GPU_new, main="boxplot of Pixel_Rate for Manufacturer", col="blue")
-boxplot(Pixel_Rate~Manufacturer, data=GPU_new_log, main="boxplot of log(Pixel_Rate) for Manufacturer", col="red")
+par(mfrow = c(1, 2))
+boxplot(Pixel_Rate ~ Manufacturer, data = GPU_new, main = "boxplot of Pixel_Rate for Manufacturer", col = "blue")
+boxplot(Pixel_Rate ~ Manufacturer, data = GPU_new_log, main = "boxplot of log(Pixel_Rate) for Manufacturer", col = "red")
 
-par(mfrow=c(1,2))
-boxplot(Pixel_Rate~Memory_Type, data=GPU_new, main="boxplot of Pixel_Rate for Memory_Type", col="blue")
-boxplot(Pixel_Rate~Memory_Type, data=GPU_new_log, main="boxplot of log(Pixel_Rate) for Memory_Type", col="red")
+par(mfrow = c(1, 2))
+boxplot(Pixel_Rate ~ Memory_Type, data = GPU_new, main = "boxplot of Pixel_Rate for Memory_Type", col = "blue")
+boxplot(Pixel_Rate ~ Memory_Type, data = GPU_new_log, main = "boxplot of log(Pixel_Rate) for Memory_Type", col = "red")
 
-par(mfrow=c(1,2))
-boxplot(Pixel_Rate~Resolution_WxH, data=GPU_new, main="boxplot of Pixel_Rate for Resolution_WxH", col="blue")
-boxplot(Pixel_Rate~Resolution_WxH, data=GPU_new_log, main="boxplot of log(Pixel_Rate) for Resolution_WxH", col="red")
+par(mfrow = c(1, 2))
+boxplot(Pixel_Rate ~ Resolution_WxH, data = GPU_new, main = "boxplot of Pixel_Rate for Resolution_WxH", col = "blue")
+boxplot(Pixel_Rate ~ Resolution_WxH, data = GPU_new_log, main = "boxplot of log(Pixel_Rate) for Resolution_WxH", col = "red")
 
 # Chia layout thành 3 hàng và 2 cột
 par(mfrow = c(3, 2), mar = c(4, 4, 2, 1))
@@ -288,43 +297,49 @@ par(mfrow = c(3, 2), mar = c(4, 4, 2, 1))
 # Vẽ scatter plot
 # Core_Speed vs Pixel_Rate
 plot(GPU_new$Core_Speed, GPU_new$Pixel_Rate,
-     xlab = "Core_Speed", ylab = "Pixel_Rate",
-     main = "Pixel_Rate and Core_Speed", col = "blue", pch = 20)
+  xlab = "Core_Speed", ylab = "Pixel_Rate",
+  main = "Pixel_Rate and Core_Speed", col = "blue", pch = 20
+)
 fit1 <- lm(Pixel_Rate ~ Core_Speed, data = GPU_new)
 abline(fit1, col = "red")
 
 # log(Core_Speed) vs log(Pixel_Rate)
-plot(GPU_new_log$Core_Speed, GPU_new_log$Pixel_Rate, 
-     xlab = "log(Core_Speed)", ylab = "log(Pixel_Rate)", 
-     main = "log(Pixel_Rate) and log(Core_Speed)", col = "red", pch = 20)
+plot(GPU_new_log$Core_Speed, GPU_new_log$Pixel_Rate,
+  xlab = "log(Core_Speed)", ylab = "log(Pixel_Rate)",
+  main = "log(Pixel_Rate) and log(Core_Speed)", col = "red", pch = 20
+)
 fit2 <- lm(Pixel_Rate ~ Core_Speed, data = GPU_new_log)
 abline(fit2, col = "blue")
 
 # ROPs vs Pixel_Rate
 plot(GPU_new$ROPs, GPU_new$Pixel_Rate,
-     xlab = "ROPs", ylab = "Pixel_Rate",
-     main = "Pixel_Rate and ROPs", col = "blue", pch = 20)
+  xlab = "ROPs", ylab = "Pixel_Rate",
+  main = "Pixel_Rate and ROPs", col = "blue", pch = 20
+)
 fit3 <- lm(Pixel_Rate ~ ROPs, data = GPU_new)
 abline(fit3, col = "red")
 
 # log(ROPs) vs log(Pixel_Rate)
-plot(GPU_new_log$ROPs, GPU_new_log$Pixel_Rate, 
-     xlab = "log(ROPs)", ylab = "log(Pixel_Rate)", 
-     main = "log(Pixel_Rate) and log(ROPs)", col = "red", pch = 20)
+plot(GPU_new_log$ROPs, GPU_new_log$Pixel_Rate,
+  xlab = "log(ROPs)", ylab = "log(Pixel_Rate)",
+  main = "log(Pixel_Rate) and log(ROPs)", col = "red", pch = 20
+)
 fit4 <- lm(Pixel_Rate ~ ROPs, data = GPU_new_log)
 abline(fit4, col = "blue")
 
 # Shader vs Pixel_Rate
 plot(GPU_new$Shader, GPU_new$Pixel_Rate,
-     xlab = "Shader", ylab = "Pixel_Rate",
-     main = "Pixel_Rate and Shader", col = "blue", pch = 20)
+  xlab = "Shader", ylab = "Pixel_Rate",
+  main = "Pixel_Rate and Shader", col = "blue", pch = 20
+)
 fit5 <- lm(Pixel_Rate ~ Shader, data = GPU_new)
 abline(fit5, col = "red")
 
 # log(Core_Speed) vs log(Pixel_Rate)
-plot(GPU_new_log$Core_Speed, GPU_new_log$Pixel_Rate, 
-     xlab = "log(Shader)", ylab = "log(Pixel_Rate)", 
-     main = "log(Pixel_Rate) and log(Shader)", col = "red", pch = 20)
+plot(GPU_new_log$Core_Speed, GPU_new_log$Pixel_Rate,
+  xlab = "log(Shader)", ylab = "log(Pixel_Rate)",
+  main = "log(Pixel_Rate) and log(Shader)", col = "red", pch = 20
+)
 fit6 <- lm(Pixel_Rate ~ Shader, data = GPU_new_log)
 abline(fit6, col = "blue")
 
@@ -332,21 +347,15 @@ abline(fit6, col = "blue")
 par(mfrow = c(1, 1))
 
 #--------------------------------------------------
-# Thống kê suy diễn và mô hình hóa dữ liệu GPU
-# Dự đoán sự phát triển của Pixel_Rate
-#--------------------------------------------------
-
-#--------------------------------------------------
-# 1. Chia dữ liệu thành tập huấn luyện và tập kiểm tra (2/3 - 1/3)
-#--------------------------------------------------
-set.seed(123)
-index <- createDataPartition(GPU_new_log$Pixel_Rate, p = 2/3, list = FALSE)
-train <- GPU_new_log[index, ]
-test  <- GPU_new_log[-index, ]
-
-#--------------------------------------------------
 # 5. Thống kê suy diễn
 #--------------------------------------------------
+
+# Chia dữ liệu thành tập huấn luyện và tập kiểm tra (2/3 - 1/3)
+set.seed(123)
+index <- createDataPartition(GPU_new_log$Pixel_Rate, p = 2 / 3, list = FALSE)
+train <- GPU_new_log[index, ]
+test <- GPU_new_log[-index, ]
+
 # 5.1 Đánh giá mối quan hệ giữa các biến
 # 5.1.1 Ma trận tương quan Pearson
 correlation_results <- data.frame(
@@ -381,25 +390,27 @@ for (v in numerical) {
   print(p)
 }
 
-# 5.2 So sánh và kiểm định nhóm
-# 5.2.1 Phân tích phương sai (ANOVA) cho 3 nhóm trở lên
+par(mfrow = c(2, 2), mar = c(6, 6, 4, 4))
+# 5.2 Phân tích phương sai (ANOVA) cho 3 nhóm trở lên
 for (cat in categorical) {
   cat("\nANOVA for", cat, "on Train set\n")
   aov_mod <- aov(as.formula(paste("Pixel_Rate ~", cat)), data = train)
-  print(summary(aov_mod))
-  
-  # 5.2.1.1 Kiểm định giả thiết (Shapiro, Levene)
-  print(shapiro.test(residuals(aov_mod)))  # Normality
+  # print(summary(aov_mod))
+
+  # 5.2.1 Kiểm định giả thiết (Shapiro, Levene)
+  # print(shapiro.test(residuals(aov_mod)))  # Normality
   levene_result <- leveneTest(as.formula(paste("Pixel_Rate ~", cat)), data = train)
-  print(levene_result)  # Homogeneity
-  
-  # 5.2.1.2 Hậu nghiệm Tukey & Effect size (η²)
+  # print(levene_result)  # Homogeneity
+
+  # 5.2.2 Hậu nghiệm Tukey & Effect size (η²)
   tukey_result <- TukeyHSD(aov_mod)
   print(tukey_result)
+  plot(TukeyHSD(aov_mod), las = 1)
   tab <- summary(aov_mod)[[1]]
-  eta2 <- tab[,"Sum Sq"] / sum(tab[,"Sum Sq"])
+  eta2 <- tab[, "Sum Sq"] / sum(tab[, "Sum Sq"])
   print(cbind(tab, Eta2 = eta2))
 }
+par(mfrow = c(1, 1))
 
 # 5.3 Xây dựng mô hình hồi quy đa biến
 # 5.3.1 Tiền xử lý & lựa chọn biến (stepwise / Lasso / VIF)
@@ -410,7 +421,7 @@ full_form <- as.formula(
 
 # Huấn luyện mô hình đầy đủ
 full_mod <- lm(full_form, data = train)
-print(vif(full_mod))  # Kiểm tra multicollinearity
+print(vif(full_mod)) # Kiểm tra cộng tuyến multicollinearity
 
 # Lựa chọn biến bằng stepwise selection
 step_mod <- step(full_mod, direction = "both", trace = 0)
@@ -420,38 +431,24 @@ print(summary(step_mod))
 model_final <- step_mod
 print(summary(model_final))
 
-# 5.3.3 Đánh giá mô hình (adjusted R², AIC/BIC, F-test)
-cat("Adjusted R²:", summary(model_final)$adj.r.squared, "\n")
-cat("AIC:", AIC(model_final), " BIC:", BIC(model_final), "\n")
-print(anova(model_final))  # F-test
+# 5.3.3 Đánh giá mô hình (adjusted R², AIC/BIC, F-test) #Bỏ phần này vì trùng với phần Cross-validation
+# cat("Adjusted R²:", summary(model_final)$adj.r.squared, "\n")
+# cat("AIC:", AIC(model_final), " BIC:", BIC(model_final), "\n") #Không có mô hình khác để so sánh
+# print(anova(model_final))  # F-test #Chỉ dùng để khẳng định lại thông tin p < 0.05, loại bỏ để tránh trùng lặp và làm gọn báo cáo
 
-# 5.3.4 Diagnostic plots & kiểm tra multicollinearity (VIF)
+# 5.3.3 Diagnostic plots
 par(mfrow = c(2, 2))
 plot(model_final)
 par(mfrow = c(1, 1))
-print(vif(model_final))
 
-# 5.3.5 Cross-validation (k-fold)
+# 5.3.4 Cross-validation (k-fold)
 set.seed(123)
-cv <- train(full_form, data = train,
-            method = "lm",
-            trControl = trainControl(method = "cv", number = 5))
+cv <- train(full_form,
+  data = train,
+  method = "lm",
+  trControl = trainControl(method = "cv", number = 5)
+)
 print(cv)
-
-# 5.4 Phân tích chuỗi thời gian (nếu có biến thời gian)
-if ("Release_Date" %in% names(train)) {
-  train$Release_Date <- as.Date(train$Release_Date)
-  test$Release_Date <- as.Date(test$Release_Date)
-  train$Time_Trend <- as.numeric(train$Release_Date - min(train$Release_Date))
-  test$Time_Trend <- as.numeric(test$Release_Date - min(train$Release_Date))
-  
-  full_form_time <- as.formula(
-    paste("Pixel_Rate ~", paste(c(numerical, categorical, "Time_Trend"), collapse = " + "))
-  )
-  
-  model_time <- lm(full_form_time, data = train)
-  print(summary(model_time))
-}
 
 #--------------------------------------------------
 # 6. Đánh giá và dự báo
@@ -482,7 +479,7 @@ ggplot(test_long, aes(x = Value, fill = Type)) +
   geom_density(alpha = 0.5) +
   scale_fill_manual(values = c("blue", "red")) +
   theme_bw() +
-  labs(title = "Thực tế (blue) vs Dự đoán (red) trên tập kiểm tra", x = "Pixel_Rate")
+  labs(title = "Thực tế (red) vs Dự đoán (blue) trên tập kiểm tra", x = "Pixel_Rate")
 
 # Scatter plot
 ggplot(test, aes(x = Pixel_Rate, y = predicted_value)) +
@@ -492,9 +489,28 @@ ggplot(test, aes(x = Pixel_Rate, y = predicted_value)) +
   labs(title = "Thực tế vs Dự đoán", x = "Thực tế", y = "Dự đoán")
 
 # 6.3 Prediction intervals cho tương lai
-new_data <- test[1, , drop = FALSE]  # Lấy một hàng từ test làm ví dụ
+new_data <- test[1, , drop = FALSE] # Lấy một hàng từ test làm ví dụ
 pred_interval <- predict(model_final, newdata = new_data, interval = "prediction")
 print(pred_interval)
+print(new_data)
+
+# Hoặc có thể dùng nhập giá trị (đã chuẩn hóa) bằng tay cho các biến
+# new_data <- data.frame(
+#  Resolution_WxH = c("2"),
+#  Manufacturer   = c("Nvidia"),
+#  Core_Speed     = c(6.603944),
+#  Memory_Speed   = c(6.907755),
+#  Memory_Type    = c("GDDR"),
+#  ROPs           = c(2.772589),
+#  TMUs           = c(4.158883),
+#  Memory_Bus     = c(5.545177),
+#  Memory         = c(6.931472),
+#  Process        = c(4.007333),
+#  Shader         = c(1.386294),
+#  Pixel_Rate     = NA
+# )
+# pred_interval <- predict(model_final, newdata = new_data, interval = "prediction")
+# print(pred_interval)
 
 # 6.4 Kịch bản dự báo (giả định tăng/giảm biến X)
 scenario_data <- test
