@@ -344,7 +344,7 @@
   abline(fit5, col = "red")
   
   # log(Core_Speed) vs log(Pixel_Rate)
-  plot(GPU_new_log$Core_Speed, GPU_new_log$Pixel_Rate,
+  plot(GPU_new_log$Shader, GPU_new_log$Pixel_Rate,
     xlab = "log(Shader)", ylab = "log(Pixel_Rate)",
     main = "log(Pixel_Rate) and log(Shader)", col = "red", pch = 20
   )
@@ -358,11 +358,22 @@
   # 5. Thống kê suy diễn
   #--------------------------------------------------
   
-  # Chia dữ liệu thành tập huấn luyện và tập kiểm tra (2/3 - 1/3)
+  # Chia dữ liệu
   set.seed(123)
   index <- createDataPartition(GPU_new_log$Pixel_Rate, p = 2/3, list = FALSE)
   train <- GPU_new_log[index, ]
   test  <- GPU_new_log[-index, ]
+  
+  # Tạo biến dummy cho cả train và test cho mô hình 1
+  make_dummies <- function(df) {
+    df$ManufacturerNvidia <- ifelse(df$Manufacturer == "Nvidia", 1, 0)
+    df$Memory_TypeGDDR    <- ifelse(df$Memory_Type == "GDDR", 1, 0)
+    df$Resolution_WxH1    <- ifelse(df$Resolution_WxH == "1", 1, 0)
+    return(df)
+  }
+  
+  train1 <- make_dummies(train)
+  test1  <- make_dummies(test)
   
   # 5.1 Đánh giá mối quan hệ giữa các biến
   # 5.1.1 Ma trận tương quan Pearson
@@ -374,7 +385,7 @@
   )
   
   for (var in numerical) {
-    test_result <- cor.test(train[[var]], train$Pixel_Rate)
+    test_result <- cor.test(train1[[var]], train1$Pixel_Rate)
     correlation_results <- rbind(
       correlation_results,
       data.frame(
@@ -430,24 +441,39 @@
       # Hậu nghiệm Dunn nếu cần
       dunn <- dunnTest(as.formula(paste("Pixel_Rate ~", cat)), data = train, method = "bonferroni")
       print(dunn)
+      
+      dunn_df <- as.data.frame(dunn$res)
+      barplot(
+        height = dunn_df$Z,
+        names.arg = dunn_df$Comparison,
+        las = 2,
+        col = ifelse(dunn_df$P.adj < 0.05, "tomato", "skyblue"),
+        main = paste("Dunn Post-hoc -", cat),
+        ylab = "Z value")
     }
   }
+  
+  
+  
+  
   
   par(mfrow = c(1, 1))
   
   # 5.3 Xây dựng mô hình hồi quy đa biến
   # 5.3.1 Tiền xử lý & lựa chọn biến (stepwise / Lasso / VIF)
   # Tạo công thức với tất cả biến
+  # Tạo biến dummy thủ công
+  selected_categorical <- c("ManufacturerNvidia", "Memory_TypeGDDR", "Resolution_WxH1")
   full_form <- as.formula(
-    paste("Pixel_Rate ~", paste(c(numerical, categorical), collapse = " + "))
+    paste("Pixel_Rate ~", paste(c(numerical, selected_categorical), collapse = " + "))
   )
   
   # Huấn luyện mô hình đầy đủ
-  full_mod <- lm(full_form, data = train)
+  full_mod <- lm(full_form, data = train1)
   print(vif(full_mod))  # Kiểm tra cộng tuyến multicollinearity
-
+  
   # Lựa chọn biến bằng stepwise selection
-  step_mod <- step(full_mod, direction = "backward")
+  step_mod <- step(full_mod, direction = "both")
   print(summary(step_mod))
   
   # 5.3.2 Xây dựng mô hình đa biến
@@ -466,23 +492,85 @@
   
   # 5.3.4 Cross-validation (k-fold)
   set.seed(123)
-  cv <- train(full_form, data = train,
+  cv <- train(full_form, data = train1,
               method = "lm",
               trControl = trainControl(method = "cv", number = 5))
   print(cv)
+  
+  
+  # Tạo biến dummy cho cả train và test cho mô hình 2
+  make_dummies2 <- function(df) {
+    df$ManufacturerAMD <- ifelse(df$Manufacturer == "AMD", 1, 0)
+    df$Memory_TypeGDDR    <- ifelse(df$Memory_Type == "GDDR", 1, 0)
+    df$Resolution_WxH1    <- ifelse(df$Resolution_WxH == "1", 1, 0)
+    return(df)
+  }
+  
+  train2 <- make_dummies2(train)
+  test2  <- make_dummies2(test)
+  
+  selected_categorical2 <- c("ManufacturerAMD", "Memory_TypeGDDR", "Resolution_WxH1")
+  full_form2 <- as.formula(
+    paste("Pixel_Rate ~", paste(c(numerical, selected_categorical2), collapse = " + "))
+  )
+  
+  # Huấn luyện mô hình đầy đủ
+  full_mod2 <- lm(full_form2, data = train2)
+  print(vif(full_mod2))  # Kiểm tra cộng tuyến multicollinearity
+  
+  # Lựa chọn biến bằng stepwise selection
+  step_mod <- step(full_mod2, direction = "both")
+  print(summary(step_mod))
+  
+  # 5.3.2 Xây dựng mô hình đa biến
+  model_final2 <- step_mod
+  print(summary(model_final2))
+  
+  
+  
+  
+  
+  # Tạo biến dummy cho cả train và test cho mô hình 3
+  make_dummies3 <- function(df) {
+    df$ManufacturerIntel <- ifelse(df$Manufacturer == "Intel", 1, 0)
+    df$Memory_TypeDDR    <- ifelse(df$Memory_Type == "DDR", 1, 0)
+    df$Resolution_WxH2    <- ifelse(df$Resolution_WxH == "2", 1, 0)
+    return(df)
+  }
+  
+  train3 <- make_dummies3(train)
+  test3  <- make_dummies3(test)
+  
+  selected_categorical3 <- c("ManufacturerIntel", "Memory_TypeDDR", "Resolution_WxH2")
+  full_form3 <- as.formula(
+    paste("Pixel_Rate ~", paste(c(numerical, selected_categorical3), collapse = " + "))
+  )
+  
+  # Huấn luyện mô hình đầy đủ
+  full_mod3 <- lm(full_form3, data = train3)
+  print(vif(full_mod3))  # Kiểm tra cộng tuyến multicollinearity
+  
+  # Lựa chọn biến bằng stepwise selection
+  step_mod <- step(full_mod3, direction = "both")
+  print(summary(step_mod))
+  
+  # 5.3.2 Xây dựng mô hình đa biến
+  model_final3 <- step_mod
+  print(summary(model_final3))
+  
   
   #--------------------------------------------------
   # 6. Đánh giá và dự báo
   #--------------------------------------------------
   # 6.1 Dự báo trên tập test: MAE, MSE, R², RMSE
-  pred <- predict(model_final, newdata = test)
-  test$predicted_value <- pred
+  pred <- predict(model_final, newdata = test1)
+  test1$predicted_value <- pred
   
   # Tính toán các chỉ số
-  mae_value <- mae(test$Pixel_Rate, test$predicted_value)
-  mse_value <- mse(test$Pixel_Rate, test$predicted_value)
-  rmse_value <- rmse(test$Pixel_Rate, test$predicted_value)
-  r2_value <- cor(test$Pixel_Rate, test$predicted_value)^2
+  mae_value <- mae(test1$Pixel_Rate, test1$predicted_value)
+  mse_value <- mse(test1$Pixel_Rate, test1$predicted_value)
+  rmse_value <- rmse(test1$Pixel_Rate, test1$predicted_value)
+  r2_value <- cor(test1$Pixel_Rate, test1$predicted_value)^2
   
   cat("MAE trên tập kiểm tra:", mae_value, "\n")
   cat("MSE trên tập kiểm tra:", mse_value, "\n")
@@ -491,7 +579,7 @@
   
   # 6.2 Density plot/Scatter plot thực vs dự đoán
   # Density plot
-  test_long <- test %>%
+  test_long <- test1 %>%
     select(Pixel_Rate, predicted_value) %>%
     rename(Thuc_te = Pixel_Rate, Du_doan = predicted_value) %>%
     pivot_longer(everything(), names_to = "Type", values_to = "Value")
@@ -510,13 +598,13 @@
     labs(title = "Thực tế vs Dự đoán", x = "Thực tế", y = "Dự đoán")
   
   # 6.3 Prediction intervals cho tương lai
-  new_data <- test[1, , drop = FALSE] # Lấy một hàng từ test làm ví dụ
+  new_data <- test1[1, , drop = FALSE]  # Lấy một hàng từ test làm ví dụ
   pred_interval <- predict(model_final, newdata = new_data, interval = "prediction")
   print(pred_interval)
   print(new_data)
   
   # Hoặc có thể dùng nhập giá trị (đã chuẩn hóa) bằng tay cho các biến
-  # new_data <- data.frame(
+  #new_data <- data.frame(
   #  Resolution_WxH = c("2"),
   #  Manufacturer   = c("Nvidia"),
   #  Core_Speed     = c(6.603944),
@@ -529,12 +617,12 @@
   #  Process        = c(4.007333),
   #  Shader         = c(1.386294),
   #  Pixel_Rate     = NA
-  # )
-  # pred_interval <- predict(model_final, newdata = new_data, interval = "prediction")
-  # print(pred_interval)
+  #)
+  #pred_interval <- predict(model_final, newdata = new_data, interval = "prediction")
+  #print(pred_interval)
   
   # 6.4 Kịch bản dự báo (giả định tăng/giảm biến X)
-  scenario_data <- test
+  scenario_data <- test1
   scenario_data$Core_Speed <- scenario_data$Core_Speed * 1.1
   pred_scenario <- predict(model_final, newdata = scenario_data)
   cat("Dự đoán với Core_Speed tăng 10%:\n")
