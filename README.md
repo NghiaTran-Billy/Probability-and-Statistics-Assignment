@@ -21,24 +21,26 @@ This work demonstrates the application of probability and statistics in computer
 The complete project report (53 pages) in Vietnamese, including introduction, methodology, data preprocessing, descriptive statistics, inferential analysis, model building, evaluation, and conclusions. It features detailed visualizations, statistical results, and discussions on limitations and future work.
 
 ### All_GPUs.csv
-The original dataset used for analysis (not included in this repository). Download it from [Kaggle](https://www.kaggle.com/) to replicate our work.
+The original dataset used for analysis (not included in this repository). Download it from [Kaggle](https://www.kaggle.com/datasets/iliassekkaf/computerparts) to replicate our work.
 
-*Note*: If code for data analysis (e.g., in Python using pandas, scipy, statsmodels) is added later, it will be documented here.
+*Note*: The R script used for data analysis (`Code_BTL.R`) is included in the repository and documented below.
 
 ## Requirements
 
 No specific software requirements for viewing the report—just a PDF reader like Adobe Acrobat or any web browser.
 
 To replicate the analysis:
-- Python 3.x with libraries: `numpy`, `pandas`, `scipy`, `statsmodels`, `matplotlib`, `seaborn`.
-- Install via `pip install -r requirements.txt` (if added in future updates).
+- **R** (version 4.x or higher recommended).
+- Install the required R packages by running the following command in R:
+  ```R
+  install.packages(c("stringr", "tidyr", "dplyr", "zoo", "Metrics", "caret", "MASS", "ggplot2", "reshape2", "mltools", "DescTools", "plotly", "car", "effectsize", "boot", "patchwork", "rstatix", "PMwR", "FSA"))
 
 ## Usage
 
 1. Clone the repository: git clone https://github.com/NghiaTran-Billy/Probability-and-Statistics-Assignment.git
 2. Open `BTL_XSTK.pdf` to read the full report.
 3. For hands-on exploration:
-- Download the dataset from [Kaggle]([https://www.kaggle.com/](https://www.kaggle.com/datasets/iliassekkaf/computerparts)).
+- Download the dataset from [Kaggle]((https://www.kaggle.com/datasets/iliassekkaf/computerparts)).
 - Run any accompanying scripts (to be added) for statistical computations and visualizations.
 
 Feel free to fork and contribute improvements, such as translating the report to English or adding interactive Jupyter notebooks!
