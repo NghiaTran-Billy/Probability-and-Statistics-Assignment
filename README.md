@@ -39,8 +39,9 @@ To replicate the analysis:
 
 1. Clone the repository: git clone https://github.com/NghiaTran-Billy/Probability-and-Statistics-Assignment.git
 2. Open `BTL_XSTK.pdf` to read the full report.
-3. For hands-on exploration:
-- Download the dataset from [Kaggle]((https://www.kaggle.com/datasets/iliassekkaf/computerparts)).
+3. Rmarkdown and visualization on Kaggle Markdown link: [Kaggle](https://www.kaggle.com/code/trungnghatrnk24hcmut/probability-and-statistics-assignment).
+4. For hands-on exploration:
+- Download the dataset from [Kaggle](https://www.kaggle.com/datasets/iliassekkaf/computerparts).
 - Run any accompanying scripts (to be added) for statistical computations and visualizations.
 
 Feel free to fork and contribute improvements, such as translating the report to English or adding interactive Jupyter notebooks!
